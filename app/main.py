@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict, Any
 import re
+import dns.exception
 
 from app.modules import DNSChecker, TrustScorer, ActionGenerator
 from app.config import settings
@@ -165,10 +166,18 @@ async def scan_domain(request: ScanDomainRequest):
             summary=summary
         )
     
+    except dns.exception.DNSException as e:
+        # DNS-specific errors
+        raise HTTPException(
+            status_code=400,
+            detail=f"DNS lookup failed for domain '{request.domain}'. Please verify the domain is valid and has DNS records configured."
+        )
     except Exception as e:
+        # Log the full error internally (in production, use proper logging)
+        # For now, we'll just keep it simple
         raise HTTPException(
             status_code=500,
-            detail=f"Error scanning domain: {str(e)}"
+            detail="An error occurred while scanning the domain. Please try again later."
         )
 
 

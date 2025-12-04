@@ -3,7 +3,6 @@
 Example script demonstrating how to use the SpamNoMore API
 """
 import requests
-import json
 import sys
 
 
