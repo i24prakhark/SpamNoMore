@@ -177,31 +177,16 @@ class DNSChecker:
     # ---------------- MX ------------------
 
     def check_mx(self) -> Dict[str, Any]:
-        """Check MX records accurately for inbound mail capability"""
+        """Check MX records safely and correctly using pure DNS truth"""
 
         try:
             answers = self.resolver.resolve(self.domain, 'MX')
             records = []
 
-            # Exact outbound-only MX hosts (not inbound receivers)
-            blocked_hosts = {
-                "smtp.google.com",
-                "smtp.office365.com",
-                "smtp.mailgun.org",
-                "smtp.sendgrid.net",
-                "email-smtp.amazonaws.com"
-            }
-
             for mx in answers:
-                server = str(mx.exchange).rstrip(".").lower()
-
-                # Drop ONLY known outbound relay addresses
-                if server in blocked_hosts:
-                    continue
-
                 records.append({
                     "priority": mx.preference,
-                    "server": server
+                    "server": str(mx.exchange).rstrip(".")
                 })
 
             records.sort(key=lambda x: x["priority"])
@@ -215,6 +200,7 @@ class DNSChecker:
 
         except:
             return {"exists": False, "records": [], "count": 0, "valid": False}
+
 
 
 
