@@ -181,8 +181,3 @@ async def scan_domain(request: ScanDomainRequest):
             status_code=500,
             detail="An error occurred while scanning the domain. Please try again later."
         )
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
