@@ -183,15 +183,35 @@ class DNSChecker:
             answers = self.resolver.resolve(self.domain, 'MX')
             records = []
 
+            # Outbound-only mail hosts (not valid receiving MX)
+            blocked_prefixes = [
+                "smtp.",
+                "mail.",
+                "relay.",
+                "send.",
+                "outbound."
+            ]
+
             for mx in answers:
+                server = str(mx.exchange).rstrip(".")
+
+                # Ignore outbound SMTP servers incorrectly used as MX
+                if any(server.lower().startswith(prefix) for prefix in blocked_prefixes):
+                    continue
+
                 records.append({
                     "priority": mx.preference,
-                    "server": str(mx.exchange).rstrip(".")
+                    "server": server
                 })
 
             records.sort(key=lambda x: x["priority"])
 
-            return {"exists": True, "records": records, "count": len(records), "valid": True}
+            return {
+                "exists": len(records) > 0,
+                "records": records,
+                "count": len(records),
+                "valid": len(records) > 0
+            }
 
         except:
             return {"exists": False, "records": [], "count": 0, "valid": False}
