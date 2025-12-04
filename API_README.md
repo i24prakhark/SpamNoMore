@@ -46,10 +46,22 @@ For production deployments, it's recommended to:
 Start the FastAPI server:
 
 ```bash
+./run.sh
+```
+
+Or manually:
+
+```bash
 uvicorn app.main:app --reload
 ```
 
 The API will be available at `http://localhost:8000`
+
+You can also customize the host and port:
+
+```bash
+HOST=127.0.0.1 PORT=5000 ./run.sh
+```
 
 ## API Documentation
 
@@ -193,6 +205,14 @@ response = requests.post(
 result = response.json()
 print(f"Trust Score: {result['trust_percentage']}%")
 print(f"Summary: {result['summary']}")
+```
+
+### Using the example script:
+```bash
+python example_usage.py google.com
+
+# With custom API URL
+python example_usage.py example.com https://api.spamnomore.com
 ```
 
 ## Project Structure
