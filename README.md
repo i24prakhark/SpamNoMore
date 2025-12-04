@@ -77,7 +77,17 @@ SpamNoMore/
 └── API_README.md           # Detailed API documentation
 ```
 
-## Contributing
+## 🌐 Live API
+
+Base URL:
+https://spamnomore-production.up.railway.app
+
+Health:
+GET /health
+
+Scanner:
+POST /api/scan-domain
+
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
