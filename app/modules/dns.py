@@ -144,42 +144,15 @@ class DNSChecker:
 
         return result
 
-    # ---------------- DKIM ------------------
-
-    def check_dkim(self) -> Dict[str, Any]:
-        """Check DKIM records"""
-
-        if self.is_enterprise_domain():
-            return {
-                "exists": True,
-                "records": ["Enterprise provider — DKIM is managed automatically"],
-                "valid": True,
-                "notes": ["Known enterprise provider"]
-            }
-
-        found = []
-
-        for selector in COMMON_DKIM_SELECTORS:
-            domain = f"{selector}._domainkey.{self.domain}"
-            try:
-                answers = self.resolver.resolve(domain, "TXT")
-                for rdata in answers:
-                    txt = rdata.to_text().strip('"')
-                    if "v=dkim1" in txt.lower():
-                        found.append({"selector": selector, "record": txt})
-            except:
-                continue
-
-        if found:
-            return {"exists": True, "records": found, "valid": True}
-        return {"exists": False, "records": [], "valid": False, "notes": ["No DKIM selectors found"]}
-
     # ---------------- MX ------------------
 
     def check_mx(self) -> Dict[str, Any]:
-        """Check MX records safely and correctly using pure DNS truth"""
+        """Check MX records safely using public DNS resolvers"""
 
         try:
+            # Force reliable public DNS servers
+            self.resolver.nameservers = ["8.8.8.8", "1.1.1.1"]
+
             answers = self.resolver.resolve(self.domain, 'MX')
             records = []
 
@@ -198,8 +171,14 @@ class DNSChecker:
                 "valid": len(records) > 0
             }
 
-        except:
-            return {"exists": False, "records": [], "count": 0, "valid": False}
+        except Exception as e:
+            return {
+                "exists": False,
+                "records": [],
+                "count": 0,
+                "valid": False
+            }
+
 
 
 
