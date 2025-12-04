@@ -181,6 +181,7 @@ class DNSChecker:
 
         try:
             answers = self.resolver.resolve(self.domain, 'MX')
+            print("MX RAW ANSWERS:", [str(mx.exchange) for mx in answers])
             records = []
 
             # Exact outbound-only MX hosts (not inbound receivers)
