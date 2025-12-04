@@ -3,6 +3,8 @@ Scoring module for calculating trust scores based on DNS checks and email analys
 """
 from typing import Dict, Any, Optional, List
 
+from app.config import settings
+
 
 class TrustScorer:
     """Calculates trust scores for email deliverability."""
@@ -173,8 +175,8 @@ class TrustScorer:
         if self.body:
             body_lower = self.body.lower()
             
-            # Check for spam indicators
-            spam_words = ['click here', 'act now', 'limited time', 'free money', 'nigerian prince']
+            # Check for spam indicators using configured keywords
+            spam_words = settings.SPAM_KEYWORDS
             found_spam = [word for word in spam_words if word in body_lower]
             
             if found_spam:

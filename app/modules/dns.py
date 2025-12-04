@@ -5,15 +5,17 @@ import dns.resolver
 import dns.exception
 from typing import Optional, Dict, List, Any
 
+from app.config import settings
+
 
 class DNSChecker:
     """Handles DNS lookups for email authentication records."""
     
-    def __init__(self, domain: str):
+    def __init__(self, domain: str, timeout: Optional[int] = None, lifetime: Optional[int] = None):
         self.domain = domain.lower().strip()
         self.resolver = dns.resolver.Resolver()
-        self.resolver.timeout = 5
-        self.resolver.lifetime = 5
+        self.resolver.timeout = timeout if timeout is not None else settings.DNS_TIMEOUT
+        self.resolver.lifetime = lifetime if lifetime is not None else settings.DNS_LIFETIME
     
     def check_spf(self) -> Dict[str, Any]:
         """Check SPF record for the domain."""
@@ -88,7 +90,7 @@ class DNSChecker:
         Note: DKIM requires a selector which varies per organization.
         We'll check common selectors and indicate if setup is needed.
         """
-        common_selectors = [selector, 'default', 'google', 'k1', 'selector1', 'selector2']
+        common_selectors = [selector] + settings.COMMON_DKIM_SELECTORS
         found_records = []
         
         for sel in common_selectors:

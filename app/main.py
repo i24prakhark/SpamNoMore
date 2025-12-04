@@ -8,17 +8,18 @@ from typing import Optional, List, Dict, Any
 import re
 
 from app.modules import DNSChecker, TrustScorer, ActionGenerator
+from app.config import settings
 
 app = FastAPI(
-    title="SpamNoMore API",
-    description="Email deliverability checker that analyzes domains and provides actionable insights",
-    version="1.0.0"
+    title=settings.API_TITLE,
+    description=settings.API_DESCRIPTION,
+    version=settings.API_VERSION
 )
 
-# Add CORS middleware
+# Add CORS middleware with configurable origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -95,9 +96,9 @@ class ScanDomainResponse(BaseModel):
 async def root():
     """Root endpoint."""
     return {
-        "service": "SpamNoMore API",
-        "version": "1.0.0",
-        "description": "Email deliverability checker",
+        "service": settings.API_TITLE,
+        "version": settings.API_VERSION,
+        "description": settings.API_DESCRIPTION,
         "endpoints": {
             "scan": "/api/scan-domain (POST)"
         }

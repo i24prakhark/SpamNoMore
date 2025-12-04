@@ -22,6 +22,25 @@ cd SpamNoMore
 pip install -r requirements.txt
 ```
 
+3. (Optional) Configure environment variables:
+```bash
+cp .env.example .env
+# Edit .env with your desired configuration
+```
+
+## Configuration
+
+The API can be configured using environment variables. See `.env.example` for available options:
+
+- `CORS_ORIGINS`: Comma-separated list of allowed origins (default: `*` for all)
+  - Example: `CORS_ORIGINS=https://example.com,https://app.example.com`
+- `DNS_TIMEOUT`: Timeout for DNS queries in seconds (default: `5`)
+- `DNS_LIFETIME`: DNS lifetime for queries in seconds (default: `5`)
+
+For production deployments, it's recommended to:
+1. Set `CORS_ORIGINS` to specific domains instead of using wildcard
+2. Adjust DNS timeout values based on your network conditions
+
 ## Running the API
 
 Start the FastAPI server:
@@ -183,12 +202,15 @@ SpamNoMore/
 ├── app/
 │   ├── __init__.py
 │   ├── main.py              # FastAPI application
+│   ├── config.py            # Configuration settings
 │   └── modules/
 │       ├── __init__.py
 │       ├── dns.py           # DNS lookup module
 │       ├── scoring.py       # Trust scoring module
 │       └── actions.py       # Fix suggestions module
 ├── requirements.txt
+├── .env.example             # Example environment configuration
+├── API_README.md
 └── README.md
 ```
 
