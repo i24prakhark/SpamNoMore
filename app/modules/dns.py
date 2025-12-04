@@ -27,6 +27,9 @@ class DNSChecker:
         self.resolver.timeout = timeout if timeout is not None else settings.DNS_TIMEOUT
         self.resolver.lifetime = lifetime if lifetime is not None else settings.DNS_LIFETIME
 
+        # Use stable public DNS for higher reliability
+        self.resolver.nameservers = ["8.8.8.8", "1.1.1.1"]
+
     def is_enterprise_domain(self) -> bool:
         return any(self.domain.endswith(ent) for ent in ENTERPRISE_DOMAINS)
 
@@ -55,21 +58,17 @@ class DNSChecker:
 
     def _evaluate_spf(self, record: str) -> Dict[str, Any]:
         result = {"exists": True, "record": record, "valid": True, "notes": []}
-
         r = record.lower()
 
-        # Must start correctly
         if not r.startswith("v=spf1"):
             result["valid"] = False
             result["notes"].append("Invalid SPF version")
             return result
 
-        # Redirect-based SPF is VALID
         if "redirect=" in r:
             result["notes"].append("Redirect-based SPF detected (valid)")
             return result
 
-        # If no redirect, check terminal policy
         if not any(x in r for x in ["-all", "~all", "?all", "+all"]):
             result["valid"] = False
             result["notes"].append("Missing terminal qualifier (-all, ~all, etc.)")
@@ -133,26 +132,58 @@ class DNSChecker:
             result["mode"] = "monitoring"
             if rua:
                 result["notes"].append("Aggregate reporting enabled")
-
-            if sp in ["reject", "quarantine"]:
+            if sp in ["quarantine", "reject"]:
                 result["mode"] = "partial-enforcement"
                 result["notes"].append("Subdomain policy enforced")
-
         else:
             result["valid"] = False
             result["notes"].append("Invalid DMARC policy")
 
         return result
 
+    # ---------------- DKIM ------------------
+
+    def check_dkim(self) -> Dict[str, Any]:
+        """Check DKIM safely using common selectors."""
+
+        # Enterprise domains are presumed managed
+        if self.is_enterprise_domain():
+            return {
+                "exists": True,
+                "records": ["Enterprise provider — DKIM is managed automatically"],
+                "valid": True,
+                "notes": ["Known enterprise provider"]
+            }
+
+        selectors = COMMON_DKIM_SELECTORS
+        found_records = []
+
+        for selector in selectors:
+            try:
+                dkim_domain = f"{selector}._domainkey.{self.domain}"
+                answers = self.resolver.resolve(dkim_domain, "TXT")
+
+                for rdata in answers:
+                    txt_value = rdata.to_text().strip('"').lower()
+                    if "v=dkim1" in txt_value and "p=" in txt_value:
+                        found_records.append({
+                            "selector": selector,
+                            "record": rdata.to_text().strip('"')
+                        })
+            except Exception:
+                continue
+
+        if found_records:
+            return {"exists": True, "records": found_records, "valid": True}
+
+        return {"exists": False, "records": [], "valid": False, "notes": ["No DKIM selectors found"]}
+
     # ---------------- MX ------------------
 
     def check_mx(self) -> Dict[str, Any]:
-        """Check MX records safely using public DNS resolvers"""
+        """Check MX records"""
 
         try:
-            # Force reliable public DNS servers
-            self.resolver.nameservers = ["8.8.8.8", "1.1.1.1"]
-
             answers = self.resolver.resolve(self.domain, 'MX')
             records = []
 
@@ -171,23 +202,13 @@ class DNSChecker:
                 "valid": len(records) > 0
             }
 
-        except Exception as e:
-            return {
-                "exists": False,
-                "records": [],
-                "count": 0,
-                "valid": False
-            }
-
-
-
-
+        except Exception:
+            return {"exists": False, "records": [], "count": 0, "valid": False}
 
     # ---------------- ALL ------------------
 
     def check_all(self) -> Dict[str, Any]:
         """Run all DNS checks"""
-
         return {
             "spf": self.check_spf(),
             "dmarc": self.check_dmarc(),
