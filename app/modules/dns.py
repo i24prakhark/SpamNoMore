@@ -177,32 +177,58 @@ class DNSChecker:
     # ---------------- MX ------------------
 
     def check_mx(self) -> Dict[str, Any]:
-        """Check MX records"""
+        """Check MX records accurately for inbound mail capability"""
 
         try:
             answers = self.resolver.resolve(self.domain, 'MX')
             records = []
 
-            # Outbound-only mail hosts (not valid receiving MX)
-            blocked_prefixes = [
-                "smtp.",
-                "mail.",
-                "relay.",
-                "send.",
-                "outbound."
+            # OUTBOUND SMTP hosts — not valid inbound mail servers
+            blocked_domains = [
+                "smtp.google.com",
+                "smtp.office365.com",
+                "amazonses.com",
+                "mailgun.org",
+                "sendgrid.net",
+                "outlook.com",
+                "yahoo.com"
             ]
 
             for mx in answers:
-                server = str(mx.exchange).rstrip(".")
+                server = str(mx.exchange).rstrip(".").lower()
 
-                # Ignore outbound SMTP servers incorrectly used as MX
-                if any(server.lower().startswith(prefix) for prefix in blocked_prefixes):
+                # Drop KNOWN outbound relays (NOT inbound MX)
+                if any(blocked in server for blocked in blocked_domains):
                     continue
 
-                records.append({
-                    "priority": mx.preference,
-                    "server": server
-                })
+                # Accept enterprise inbound patterns:
+                # Google, Microsoft, Zoho, Proton, etc.
+                inbound_keywords = [
+                    "aspmx",     # Google
+                    "googlemail",
+                    "outlook",
+                    "protection", # Microsoft
+                    "pphosted",   # Proofpoint
+                    "zoho",
+                    "yahoodns",
+                    "icloud",
+                    "protonmail",
+                    "messagingengine",  # Fastmail
+                    "mx"
+                ]
+
+                # Keep real MX servers
+                if any(k in server for k in inbound_keywords):
+                    records.append({
+                        "priority": mx.preference,
+                        "server": server
+                    })
+                else:
+                    # Unknown host — still keep (don’t incorrectly penalize)
+                    records.append({
+                        "priority": mx.preference,
+                        "server": server
+                    })
 
             records.sort(key=lambda x: x["priority"])
 
@@ -215,6 +241,7 @@ class DNSChecker:
 
         except:
             return {"exists": False, "records": [], "count": 0, "valid": False}
+
 
     # ---------------- ALL ------------------
 
