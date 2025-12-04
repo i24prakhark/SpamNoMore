@@ -1,142 +1,205 @@
 """
-Actions module for generating actionable fix suggestions.
+Actions module for generating intelligent, contextual suggestions.
 """
+
 from typing import List, Dict, Any
 
 
 class ActionGenerator:
     """Generates prioritized fix suggestions based on scan results."""
-    
+
     def __init__(self, dns_results: Dict[str, Any], scores: Dict[str, Any]):
         self.dns_results = dns_results
         self.scores = scores
         self.suggestions = []
-    
+
     def generate_suggestions(self) -> List[Dict[str, Any]]:
         """Generate prioritized list of fix suggestions."""
         self.suggestions = []
-        
-        # Check SPF
+
+        # High-level domain maturity detection
+        enterprise_like = self._is_enterprise_like()
+
+        # SPF
         self._check_spf_suggestions()
-        
-        # Check DKIM
-        self._check_dkim_suggestions()
-        
-        # Check DMARC
-        self._check_dmarc_suggestions()
-        
-        # Check MX
+
+        # DKIM
+        self._check_dkim_suggestions(enterprise_like)
+
+        # DMARC
+        self._check_dmarc_suggestions(enterprise_like)
+
+        # MX
         self._check_mx_suggestions()
-        
-        # Check content issues
+
+        # Content
         self._check_content_suggestions()
-        
-        # Sort by priority (critical, high, medium, low)
-        priority_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}
-        self.suggestions.sort(key=lambda x: priority_order.get(x['priority'], 4))
-        
+
+        # Sort suggestions by priority
+        priority_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3, 'info': 4}
+        self.suggestions.sort(key=lambda x: priority_order.get(x['priority'], 99))
+
         return self.suggestions
-    
+
+    # ---------------- INTELLIGENCE ----------------
+
+    def _is_enterprise_like(self) -> bool:
+        """Detect if domain behaves like an enterprise-scale provider"""
+        mx = self.dns_results.get("mx", {})
+        dmarc = self.dns_results.get("dmarc", {})
+        dkim = self.dns_results.get("dkim", {})
+
+        mx_count = mx.get("count", 0)
+        dmarc_mode = dmarc.get("mode")
+        dkim_ok = dkim.get("valid")
+
+        # Enterprise = large infra + DKIM + policy nuance
+        return mx_count >= 4 and dkim_ok and dmarc_mode in ["partial-enforcement", "enforcing", "strict"]
+
+    # ---------------- SPF ----------------
+
     def _check_spf_suggestions(self):
-        """Generate SPF-related suggestions."""
-        spf = self.dns_results.get('spf', {})
-        
-        if not spf.get('exists'):
+        spf = self.dns_results.get("spf", {})
+
+        if not spf.get("exists"):
             self.suggestions.append({
-                'priority': 'critical',
-                'category': 'SPF',
-                'issue': 'No SPF record found',
-                'action': 'Add an SPF record to your domain DNS settings',
-                'details': 'SPF (Sender Policy Framework) helps prevent email spoofing. Add a TXT record like: "v=spf1 include:_spf.google.com ~all"',
-                'impact': 'High - Missing SPF significantly reduces email deliverability'
+                "priority": "critical",
+                "category": "SPF",
+                "issue": "No SPF record found",
+                "action": "Add an SPF record to your domain",
+                "details": "SPF prevents senders from spoofing your domain. Add a DNS TXT record like: v=spf1 include:_spf.google.com ~all",
+                "impact": "High — Missing SPF reduces inbox trust"
             })
-        elif not spf.get('valid'):
+
+        elif not spf.get("valid"):
             self.suggestions.append({
-                'priority': 'high',
-                'category': 'SPF',
-                'issue': 'SPF record exists but may be improperly configured',
-                'action': 'Review and update your SPF record',
-                'details': f'Current SPF: {spf.get("record")}. Ensure it ends with -all or ~all and includes all sending sources.',
-                'impact': 'Medium - Improper SPF configuration may cause delivery issues'
+                "priority": "high",
+                "category": "SPF",
+                "issue": "SPF is configured incorrectly",
+                "action": "Fix your SPF configuration",
+                "details": f"Current record: {spf.get('record')}. Ensure redirect, includes and terminal policy are valid.",
+                "impact": "Medium — Broken SPF causes authentication failures"
             })
-    
-    def _check_dkim_suggestions(self):
-        """Generate DKIM-related suggestions."""
-        dkim = self.dns_results.get('dkim', {})
-        
-        if not dkim.get('exists'):
+
+    # ---------------- DKIM ----------------
+
+    def _check_dkim_suggestions(self, enterprise: bool):
+        dkim = self.dns_results.get("dkim", {})
+
+        if not dkim.get("exists"):
+
+            if enterprise:
+                self.suggestions.append({
+                    "priority": "info",
+                    "category": "DKIM",
+                    "issue": "DKIM not publicly discoverable",
+                    "action": "No action needed",
+                    "details": "Enterprise providers may hide selectors intentionally. Authentication is managed internally.",
+                    "impact": "None"
+                })
+            else:
+                self.suggestions.append({
+                    "priority": "high",
+                    "category": "DKIM",
+                    "issue": "No DKIM records found",
+                    "action": "Enable DKIM signing",
+                    "details": "Configure DKIM inside your email provider (Google Workspace, Outlook, etc.)",
+                    "impact": "High — Missing DKIM hurts sender identity "
+                })
+
+    # ---------------- DMARC ----------------
+
+    def _check_dmarc_suggestions(self, enterprise: bool):
+        dmarc = self.dns_results.get("dmarc", {})
+        policy = dmarc.get("policy")
+        mode = dmarc.get("mode")
+
+        if not dmarc.get("exists"):
             self.suggestions.append({
-                'priority': 'high',
-                'category': 'DKIM',
-                'issue': 'No DKIM records found',
-                'action': 'Set up DKIM signing for your domain',
-                'details': 'DKIM adds a digital signature to your emails. Configure DKIM through your email service provider (e.g., Google Workspace, Microsoft 365).',
-                'impact': 'High - DKIM is essential for email authentication'
+                "priority": "critical",
+                "category": "DMARC",
+                "issue": "No DMARC policy found",
+                "action": "Add DMARC record",
+                "details": "DMARC protects your domain from spoofing. Recommended: v=DMARC1; p=quarantine; rua=mailto:dmarc@yourdomain.com",
+                "impact": "Critical — Missing DMARC breaks protection"
             })
-    
-    def _check_dmarc_suggestions(self):
-        """Generate DMARC-related suggestions."""
-        dmarc = self.dns_results.get('dmarc', {})
-        
-        if not dmarc.get('exists'):
+
+        elif policy == "none":
+
+            if enterprise and mode == "partial-enforcement":
+                self.suggestions.append({
+                    "priority": "info",
+                    "category": "DMARC",
+                    "issue": "DMARC in monitoring mode",
+                    "action": "No change recommended",
+                    "details": "This configuration is common in enterprise environments for observability and staged enforcement.",
+                    "impact": "None"
+                })
+            else:
+                self.suggestions.append({
+                    "priority": "medium",
+                    "category": "DMARC",
+                    "issue": "DMARC policy not enforcing",
+                    "action": "Move to quarantine or reject",
+                    "details": f"Current DMARC: {dmarc.get('record')}. Enforcing policy improves security and trust.",
+                    "impact": "Medium — Enables domain-level protection"
+                })
+
+        elif policy in ["quarantine", "reject"] and enterprise:
             self.suggestions.append({
-                'priority': 'critical',
-                'category': 'DMARC',
-                'issue': 'No DMARC record found',
-                'action': 'Add a DMARC record to your domain',
-                'details': 'DMARC tells receiving servers what to do with emails that fail SPF/DKIM. Add a TXT record at _dmarc.yourdomain.com like: "v=DMARC1; p=quarantine; rua=mailto:dmarc@yourdomain.com"',
-                'impact': 'Critical - DMARC is required by major email providers'
+                "priority": "info",
+                "category": "DMARC",
+                "issue": "DMARC policy enforced",
+                "action": "No action needed",
+                "details": "This policy provides strong domain protection.",
+                "impact": "None"
             })
-        elif dmarc.get('policy') == 'none':
-            self.suggestions.append({
-                'priority': 'medium',
-                'category': 'DMARC',
-                'issue': 'DMARC policy set to "none"',
-                'action': 'Strengthen DMARC policy to "quarantine" or "reject"',
-                'details': f'Current DMARC: {dmarc.get("record")}. Change p=none to p=quarantine or p=reject for better protection.',
-                'impact': 'Medium - Weak DMARC policy provides minimal protection'
-            })
-    
+
+    # ---------------- MX ----------------
+
     def _check_mx_suggestions(self):
-        """Generate MX-related suggestions."""
-        mx = self.dns_results.get('mx', {})
-        
-        if not mx.get('exists'):
+        mx = self.dns_results.get("mx", {})
+        count = mx.get("count", 0)
+
+        if not mx.get("exists"):
             self.suggestions.append({
-                'priority': 'critical',
-                'category': 'MX Records',
-                'issue': 'No MX records found',
-                'action': 'Add MX records to receive emails',
-                'details': 'MX records tell other mail servers where to deliver emails for your domain. Configure MX records through your DNS provider.',
-                'impact': 'Critical - Cannot receive emails without MX records'
+                "priority": "critical",
+                "category": "MX",
+                "issue": "No MX records found",
+                "action": "Set MX records",
+                "details": "MX records enable incoming email delivery.",
+                "impact": "Critical — Cannot receive email"
             })
-        elif mx.get('count', 0) == 1:
+
+        elif count == 1:
             self.suggestions.append({
-                'priority': 'low',
-                'category': 'MX Records',
-                'issue': 'Only one MX record configured',
-                'action': 'Consider adding backup MX records',
-                'details': 'Multiple MX records provide redundancy. Add a secondary MX server with higher priority number.',
-                'impact': 'Low - Improves reliability but not critical'
+                "priority": "low",
+                "category": "MX",
+                "issue": "Single MX server",
+                "action": "Add backup MX",
+                "details": "Adding redundancy improves reliability.",
+                "impact": "Low"
             })
-    
+
+    # ---------------- CONTENT ----------------
+
     def _check_content_suggestions(self):
-        """Generate content-related suggestions."""
-        content_score = self.scores.get('content_risk', {})
-        risk_factors = content_score.get('risk_factors', [])
-        
-        if risk_factors:
+        content = self.scores.get("content_risk", {})
+        risks = content.get("risk_factors", [])
+
+        if risks:
             self.suggestions.append({
-                'priority': 'medium',
-                'category': 'Email Content',
-                'issue': 'Potential content issues detected',
-                'action': 'Review email content for spam indicators',
-                'details': f'Issues found: {", ".join(risk_factors)}. Avoid spam trigger words and ensure proper authentication.',
-                'impact': 'Medium - Content issues can trigger spam filters'
+                "priority": "medium",
+                "category": "Email Content",
+                "issue": "Content risk signals detected",
+                "action": "Review email wording and links",
+                "details": ", ".join(risks),
+                "impact": "Medium — Content impacts inbox placement"
             })
-    
+
+    # ---------------- OUTPUT ----------------
+
     def get_top_suggestions(self, limit: int = 5) -> List[Dict[str, Any]]:
-        """Get top N prioritized suggestions."""
         if not self.suggestions:
             self.generate_suggestions()
         return self.suggestions[:limit]

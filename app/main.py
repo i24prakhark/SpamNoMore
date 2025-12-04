@@ -141,14 +141,16 @@ async def scan_domain(request: ScanDomainRequest):
         
         # Create summary
         trust_percentage = overall_scores['trust_percentage']
-        if trust_percentage >= 80:
-            summary = f"Excellent setup! Your domain has a trust score of {trust_percentage}%. You're in great shape for email deliverability."
-        elif trust_percentage >= 60:
-            summary = f"Good setup with room for improvement. Trust score: {trust_percentage}%. Address the suggestions below to improve deliverability."
-        elif trust_percentage >= 40:
-            summary = f"Moderate setup with significant issues. Trust score: {trust_percentage}%. Critical improvements needed for reliable email delivery."
+        if trust_percentage >= 90:
+            summary = f"Enterprise-grade configuration detected. Deliverability posture is well above industry baseline. Trust score: {trust_percentage}%."
+        elif trust_percentage >= 75:
+            summary = f"Strong configuration with minor gaps. Most providers will trust this domain. Trust score: {trust_percentage}%."
+        elif trust_percentage >= 55:
+            summary = f"Partial authentication coverage detected. Some providers may not fully trust this domain. Trust score: {trust_percentage}%. Review suggestions to improve."
+        elif trust_percentage >= 35:
+            summary = f"Weak authentication posture detected. This domain is at risk of filtering. Trust score: {trust_percentage}%. Action is recommended to enhance deliverability."
         else:
-            summary = f"Poor configuration detected. Trust score: {trust_percentage}%. Urgent action required to fix email deliverability issues."
+            summary = f"PCritical misconfiguration detected. High risk of spam filtering or rejection. Trust score: {trust_percentage}%. Immediate action required to fix issues."
         
         # Format response
         return ScanDomainResponse(
