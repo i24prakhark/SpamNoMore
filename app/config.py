@@ -14,10 +14,8 @@ class Settings:
     API_DESCRIPTION: str = "Email deliverability checker that analyzes domains and provides actionable insights"
     
     # CORS Configuration
-    CORS_ORIGINS: List[str] = os.getenv(
-        "CORS_ORIGINS", 
-        "*"
-    ).split(",") if os.getenv("CORS_ORIGINS") else ["*"]
+    CORS_ORIGINS_ENV: str = os.getenv("CORS_ORIGINS", "*")
+    CORS_ORIGINS: List[str] = CORS_ORIGINS_ENV.split(",") if CORS_ORIGINS_ENV != "*" else ["*"]
     
     # DNS Configuration
     DNS_TIMEOUT: int = int(os.getenv("DNS_TIMEOUT", "5"))

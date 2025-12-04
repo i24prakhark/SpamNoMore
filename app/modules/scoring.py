@@ -180,7 +180,9 @@ class TrustScorer:
             found_spam = [word for word in spam_words if word in body_lower]
             
             if found_spam:
-                score -= len(found_spam) * 2
+                # Cap spam keyword penalty to max 10 points per email to prevent excessive penalties
+                deduction = min(len(found_spam) * 2, 10)
+                score -= deduction
                 risk_factors.append(f'Potential spam keywords detected: {len(found_spam)}')
         
         if not self.headers and not self.body:

@@ -67,7 +67,7 @@ class DNSChecker:
                     'exists': True,
                     'record': dmarc_record,
                     'policy': policy,
-                    'valid': policy in ['quarantine', 'reject']
+                    'valid': policy in ['quarantine', 'reject', 'none']
                 }
             else:
                 return {
