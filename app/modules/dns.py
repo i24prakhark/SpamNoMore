@@ -183,52 +183,26 @@ class DNSChecker:
             answers = self.resolver.resolve(self.domain, 'MX')
             records = []
 
-            # OUTBOUND SMTP hosts — not valid inbound mail servers
-            blocked_domains = [
+            # Exact outbound-only MX hosts (not inbound receivers)
+            blocked_hosts = {
                 "smtp.google.com",
                 "smtp.office365.com",
-                "amazonses.com",
-                "mailgun.org",
-                "sendgrid.net",
-                "outlook.com",
-                "yahoo.com"
-            ]
+                "smtp.mailgun.org",
+                "smtp.sendgrid.net",
+                "email-smtp.amazonaws.com"
+            }
 
             for mx in answers:
                 server = str(mx.exchange).rstrip(".").lower()
 
-                # Drop KNOWN outbound relays (NOT inbound MX)
-                if any(blocked in server for blocked in blocked_domains):
+                # Drop ONLY known outbound relay addresses
+                if server in blocked_hosts:
                     continue
 
-                # Accept enterprise inbound patterns:
-                # Google, Microsoft, Zoho, Proton, etc.
-                inbound_keywords = [
-                    "aspmx",     # Google
-                    "googlemail",
-                    "outlook",
-                    "protection", # Microsoft
-                    "pphosted",   # Proofpoint
-                    "zoho",
-                    "yahoodns",
-                    "icloud",
-                    "protonmail",
-                    "messagingengine",  # Fastmail
-                    "mx"
-                ]
-
-                # Keep real MX servers
-                if any(k in server for k in inbound_keywords):
-                    records.append({
-                        "priority": mx.preference,
-                        "server": server
-                    })
-                else:
-                    # Unknown host — still keep (don’t incorrectly penalize)
-                    records.append({
-                        "priority": mx.preference,
-                        "server": server
-                    })
+                records.append({
+                    "priority": mx.preference,
+                    "server": server
+                })
 
             records.sort(key=lambda x: x["priority"])
 
@@ -241,6 +215,7 @@ class DNSChecker:
 
         except:
             return {"exists": False, "records": [], "count": 0, "valid": False}
+
 
 
     # ---------------- ALL ------------------
